@@ -1,0 +1,81 @@
+name: release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 22 * * *"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/README.md"
+  pull_request:
+    branches: 
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Checkout SagerNet/sing-box
+        uses: actions/checkout@v3
+        with:
+          repository: SagerNet/sing-box
+          path: sing-box-dev
+          ref: dev
+
+      - name: Checkout MetaCubeX/Clash.Meta
+        uses: actions/checkout@v3
+        with:
+          repository: MetaCubeX/Clash.Meta
+          path: clash.meta-alpha
+          ref: Alpha
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.19.3'
+          check-latest: true
+          cache: true
+
+      - name: Build sing-box core
+        run: |
+          cd sing-box-dev
+          GOARCH=arm64 GOOS=android CGO_ENABLED=0 go build -v -trimpath -tags "with_gvisor,with_quic,with_grpc,with_wireguard,with_shadowsocksr,with_utls,with_clash_api" -ldflags "-s -w -buildid=" ./cmd/sing-box
+          cd ..
+
+      - name: Build clash.meta core
+        run: |
+          cd clash.meta-alpha
+          make android-arm64
+          cd ..
+
+      - name: Build Module
+        run: |
+          mkdir -p ./system/bin/
+          mv sing-box-dev/sing-box ./system/bin/sing-box
+          mv clash.meta-alpha/bin/Clash* ./system/bin/clash
+          sh build.sh
+
+      - name: Delete current release assets
+        uses: andreaswilli/delete-release-assets-action@v2.0.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: release-${{ github.ref_name }}
+          deleteOnlyFromDrafts: false
+
+      - name: Tag Repo
+        uses: richardsimko/update-tag@v1
+        with:
+          tag_name: release-${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag: ${{ github.ref_name }}
+          tag_name: release-${{ github.ref_name }}
+          files: core_update.zip
