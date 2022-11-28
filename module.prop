@@ -1,0 +1,7 @@
+id=core_update
+name=core_update
+version=v1.0
+versionCode=1
+author=Gwenhaell
+description=sing-box, clash core update.
+updateJson=https://raw.githubusercontent.com/Gwenhaell/core_update/main/update.json
